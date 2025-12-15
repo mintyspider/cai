@@ -8,7 +8,7 @@ const prompts = [
   { id: 2, name: "SEO-оптимизация", createdAt: new Date("2025-11-04T15:20:00") },
 ];
 
-export function SavedPrompts({ setPage }) {
+export function Dialogs({ setPage }) {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-6">Диалоги созданные</h1>

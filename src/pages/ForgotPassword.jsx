@@ -1,4 +1,5 @@
 // src/pages/ForgotPassword.jsx -> рабочий
+import toast from "react-hot-toast";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -12,7 +13,7 @@ export function ForgotPassword({ setPage }) {
     fetch("/api/forgot-password", {
       method: "POST",
       body: JSON.stringify({ email }),
-    }).then(() => alert("Письмо отправлено!"));
+    }).then(() => toast("Письмо отправлено!"));
   };
 
   return (

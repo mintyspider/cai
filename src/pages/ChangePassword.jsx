@@ -1,4 +1,5 @@
 // src/pages/ChangePassword.jsx
+import toast from "react-hot-toast";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -13,7 +14,7 @@ export function ChangePassword({ setPage, user }) {
     e.preventDefault();
 
     if (newPass !== confirm) {
-      alert("Пароли не совпадают");
+      toast("Пароли не совпадают");
       return;
     }
 
@@ -29,16 +30,16 @@ export function ChangePassword({ setPage, user }) {
       const data = await res.json();
 
       if (!data.success) {
-        alert(data.message || "Ошибка при смене пароля");
+        toast(data.message || "Ошибка при смене пароля");
         return;
       }
 
-      alert("Пароль успешно изменён 🎉");
+      toast("Пароль успешно изменён 🎉");
       setPage("profile");
 
     } catch (err) {
       console.error(err);
-      alert("Ошибка сервера. Попробуйте позже.");
+      toast("Ошибка сервера. Попробуйте позже.");
     }
   };
 

@@ -4,14 +4,15 @@ import { Button } from "../components/ui/button";
 import { Copy, ArrowLeft, Clock, Tag, Pencil, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
+import toast from "react-hot-toast";
 
-export function PromptDialog({ setPage, dialogId }) {
+export function Dialog({ setPage, dialogId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const copy = (text) => {
     navigator.clipboard.writeText(text);
-    alert("Скопировано!");
+    toast("Скопировано!");
   };
 
   const openConstructor = (type, id) => {
@@ -27,7 +28,7 @@ export function PromptDialog({ setPage, dialogId }) {
         setLoading(false);
       })
       .catch(() => {
-        alert("Ошибка загрузки данных");
+        toast("Ошибка загрузки данных");
         setLoading(false);
       });
   }, [dialogId]);

@@ -1,4 +1,5 @@
 // src/pages/ResetPassword.jsx -> полудохлый
+import toast from "react-hot-toast";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -13,7 +14,7 @@ export function ResetPassword({ setPage }) {
   e.preventDefault();
 
   if (password !== confirm) {
-    alert("Пароли не совпадают");
+    toast("Пароли не совпадают");
     return;
   }
 
@@ -27,16 +28,16 @@ export function ResetPassword({ setPage }) {
     const data = await res.json();
 
     if (!data.success) {
-      alert(data.message || "Ошибка при сбросе пароля");
+      toast(data.message || "Ошибка при сбросе пароля");
       return;
     }
 
-    alert("Пароль успешно изменён! 🎉");
+    toast("Пароль успешно изменён! 🎉");
     setPage("login");
 
   } catch (err) {
     console.error(err);
-    alert("Ошибка сервера. Попробуйте позже.");
+    toast("Ошибка сервера. Попробуйте позже.");
   }
 };
 
