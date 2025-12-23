@@ -1,11 +1,12 @@
 // src/App.jsx
 import { useState, useEffect } from "react";
 import {
-  BrowserRouter as Router,
+  HashRouter as Router,  // Возвращаем BrowserRouter
   Routes,
   Route,
   Navigate,
-  BrowserRouter
+  useLocation,
+  useNavigate
 } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -42,11 +43,31 @@ const ProtectedRoute = ({ children, user, isLoading }) => {
   return children;
 };
 
+// Компонент для обработки токенов из URL
+const TokenHandler = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const token = params.get("token");
+
+    if (token && location.pathname === "/login") {
+      // Сохраняем токен для обработки в Login компоненте
+      localStorage.setItem("emailConfirmationToken", token);
+      
+      // Очищаем URL от токена
+      navigate("/login", { replace: true });
+    }
+  }, [location, navigate]);
+
+  return null;
+};
+
 // Главный компонент приложения
 function App() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [processedTokens, setProcessedTokens] = useState(new Set());
 
   // Автологин при загрузке
   useEffect(() => {
@@ -86,13 +107,13 @@ function App() {
     user,
     setUser,
     onLogin: login,
-    onLogout: logout,
-    processedTokens,
-    setProcessedTokens
+    onLogout: logout
   };
 
   return (
-    <BrowserRouter>
+    <Router>
+      <TokenHandler />
+      
       <div className="min-h-screen flex flex-col">
         <Navbar user={user} onLogout={logout} />
         
@@ -156,7 +177,7 @@ function App() {
             <Route path="/landing" element={<Navigate to="/" replace />} />
             <Route path="/start" element={<Navigate to="/" replace />} />
             <Route path="/auth" element={<Navigate to="/login" replace />} />
-            
+
             {/* 404 */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -174,7 +195,7 @@ function App() {
           error: { duration: 5000 },
         }}
       />
-    </BrowserRouter>
+    </Router>
   );
 }
 

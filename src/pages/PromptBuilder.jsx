@@ -1,6 +1,6 @@
 // src/pages/PromptBuilder.jsx
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { 
@@ -10,13 +10,17 @@ import {
   ArrowRight, 
   Sparkles, 
   Loader2, 
-  Save,
   MessageSquare,
   Settings,
   HelpCircle,
   Check,
   Download,
-  FileText
+  FileText,
+  Save,
+  History,
+  Edit,
+  RotateCcw,
+  FolderPlus
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -31,6 +35,7 @@ const blockTypes = [
 
 export function PromptBuilder({ user }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [blocks, setBlocks] = useState([
     {
       id: "1",
@@ -47,7 +52,8 @@ export function PromptBuilder({ user }) {
       required: true
     }
   ]);
-  const [promptName, setPromptName] = useState("Мой промпт");
+  const [dialogTitle, setDialogTitle] = useState("Мой диалог"); // Название диалога
+  const [promptName, setPromptName] = useState(""); // Название конкретного промпта (опционально)
   const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [aiResponse, setAiResponse] = useState("");
@@ -55,6 +61,11 @@ export function PromptBuilder({ user }) {
   const [showTips, setShowTips] = useState(true);
   const [model, setModel] = useState("gpt-3.5-turbo");
   const [temperature, setTemperature] = useState(0.7);
+  const [isSaving, setIsSaving] = useState(false);
+  const [dialogId, setDialogId] = useState(null); // ID текущего диалога
+  const [promptId, setPromptId] = useState(null); // ID редактируемого промпта
+  const [isEditing, setIsEditing] = useState(false); // Редактируем промпт
+  const [isNewDialog, setIsNewDialog] = useState(true); // Создаем новый диалог
   const textareaRefs = useRef({});
 
   // Проверка авторизации
@@ -64,6 +75,134 @@ export function PromptBuilder({ user }) {
       navigate("/login");
     }
   }, [user, navigate]);
+
+  // Обработка параметров из URL
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const editPromptId = params.get('edit');
+    const existingDialogId = params.get('dialog');
+    const continueDialog = params.get('continue');
+
+    // Редактирование существующего промпта
+    if (editPromptId) {
+      loadPromptForEditing(editPromptId);
+      setIsEditing(true);
+      setIsNewDialog(false);
+    }
+    
+    // Продолжение существующего диалога
+    if (existingDialogId && continueDialog === "true") {
+      loadDialogForContinuation(existingDialogId);
+      setIsNewDialog(false);
+      setDialogId(existingDialogId);
+    }
+    
+    // Открытие существующего диалога для добавления нового промпта
+    if (existingDialogId && !continueDialog) {
+      loadDialogInfo(existingDialogId);
+      setIsNewDialog(false);
+      setDialogId(existingDialogId);
+    }
+  }, [location]);
+
+  // Загрузка информации о диалоге
+  const loadDialogInfo = async (dialogId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/dialogs/${dialogId}/info`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setDialogTitle(data.data.title || "Диалог");
+        toast.success(`Открыт диалог: ${data.data.title}`);
+      }
+    } catch (error) {
+      console.error("Ошибка загрузки диалога:", error);
+    }
+  };
+
+  // Загрузка промпта для редактирования
+  const loadPromptForEditing = async (promptId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/prompts/${promptId}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        loadPromptData(data.data);
+        setPromptId(promptId);
+        toast.success("Промпт загружен для редактирования");
+      }
+    } catch (error) {
+      console.error("Ошибка загрузки промпта:", error);
+      toast.error("Не удалось загрузить промпт");
+    }
+  };
+
+  // Загрузка диалога для продолжения
+  const loadDialogForContinuation = async (dialogId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/dialogs/${dialogId}/context`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Устанавливаем название диалога
+        setDialogTitle(data.data.title || "Диалог");
+        
+        // Заполняем контекст из истории диалога
+        if (data.data.context) {
+          setBlocks(prev => {
+            const newBlocks = [...prev];
+            const contextBlock = newBlocks.find(b => b.type === "context");
+            if (contextBlock) {
+              contextBlock.content = data.data.context + "\n\n" + contextBlock.content;
+            }
+            return newBlocks;
+          });
+        }
+        
+        toast.success("Контекст диалога загружен");
+      }
+    } catch (error) {
+      console.error("Ошибка загрузки контекста:", error);
+    }
+  };
+
+  // Загрузка данных промпта
+  const loadPromptData = (data) => {
+    if (data.dialog_title) setDialogTitle(data.dialog_title);
+    if (data.title) setPromptName(data.title);
+    if (data.model) setModel(data.model);
+    if (data.temperature) setTemperature(data.temperature);
+    
+    if (data.blocks && Array.isArray(data.blocks)) {
+      setBlocks(data.blocks.map((block, index) => ({
+        id: (index + 1).toString(),
+        type: block.type,
+        content: block.content,
+        label: block.label || blockTypes.find(t => t.value === block.type)?.label || block.type,
+        required: block.required || blockTypes.find(t => t.value === block.type)?.required || false
+      })));
+    }
+    
+    if (data.dialog_id) setDialogId(data.dialog_id);
+  };
 
   const getUsedBlockTypes = () => blocks.map(b => b.type);
   const availableBlockTypes = blockTypes.filter(type => 
@@ -117,12 +256,14 @@ export function PromptBuilder({ user }) {
     const parts = blocks
       .filter(b => b.content.trim())
       .map(b => `## ${b.label}\n${b.content}`);
-    return `# ${promptName}\n\n${parts.join("\n\n")}\n\nНачните работу!`;
+    const title = promptName || `Запрос от ${new Date().toLocaleDateString('ru-RU')}`;
+    return `# ${title}\n\n${parts.join("\n\n")}\n\nНачните работу!`;
   };
 
   const copyPrompt = () => {
     navigator.clipboard.writeText(generatePrompt());
     setCopied(true);
+    toast.success("Промпт скопирован");
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -141,15 +282,144 @@ export function PromptBuilder({ user }) {
       return false;
     }
     
-    if (!promptName.trim() && showErrors) {
-      toast.error("Введите название промпта");
+    if (!dialogTitle.trim() && showErrors) {
+      toast.error("Введите название диалога");
       return false;
     }
     
-    return emptyRequired.length === 0 && promptName.trim();
+    return emptyRequired.length === 0 && dialogTitle.trim();
   };
 
-  // Функция для экспорта в TXT файл
+  // Создание нового диалога с первым промптом
+  const createNewDialog = async () => {
+    if (!validatePrompt(true) || !aiResponse) {
+      toast.error("Сначала получите ответ от ИИ");
+      return;
+    }
+
+    setIsSaving(true);
+    
+    try {
+      const dialogData = {
+        title: dialogTitle,
+        // Первый промпт в диалоге
+        prompts: [{
+          blocks: blocks.map(block => ({
+            type: block.type,
+            label: block.label,
+            content: block.content,
+            required: block.required
+          })),
+          prompt_content: generatePrompt(),
+          prompt_title: promptName || `Промпт 1`,
+          response_content: aiResponse,
+          metadata: {
+            model: model,
+            temperature: temperature,
+            generated_at: new Date().toISOString()
+          }
+        }],
+        user_id: user?.user_id || user?.id
+      };
+
+      const response = await fetch("/api/dialogs/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        },
+        body: JSON.stringify(dialogData),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        const newDialogId = data.data?.dialog?.id;
+        
+        toast.success("Новый диалог создан!");
+        
+        // Предлагаем перейти к диалогу
+        setTimeout(() => {
+          if (window.confirm("Перейти к диалогу?")) {
+            navigate(`/dialog/${newDialogId}`);
+          }
+        }, 1000);
+      } else {
+        toast.error(data.message || "Ошибка создания диалога");
+      }
+    } catch (error) {
+      console.error("Failed to create dialog:", error);
+      toast.error("Ошибка соединения при создании");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Добавление промпта в существующий диалог
+  const addToExistingDialog = async () => {
+    if (!validatePrompt(true) || !aiResponse) {
+      toast.error("Сначала получите ответ от ИИ");
+      return;
+    }
+
+    setIsSaving(true);
+    
+    try {
+      const promptData = {
+        dialog_id: dialogId,
+        blocks: blocks.map(block => ({
+          type: block.type,
+          label: block.label,
+          content: block.content,
+          required: block.required
+        })),
+        prompt_content: generatePrompt(),
+        prompt_title: promptName || `Промпт от ${new Date().toLocaleDateString('ru-RU')}`,
+        response_content: aiResponse,
+        metadata: {
+          model: model,
+          temperature: temperature,
+          generated_at: new Date().toISOString(),
+          is_editing: isEditing,
+          original_prompt_id: promptId
+        },
+        user_id: user?.user_id || user?.id
+      };
+
+      const endpoint = isEditing ? "/api/dialogs/update-prompt" : "/api/dialogs/add-prompt";
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        },
+        body: JSON.stringify(promptData),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(isEditing ? "Промпт обновлен!" : "Промпт добавлен в диалог!");
+        
+        // Предлагаем перейти к диалогу
+        setTimeout(() => {
+          if (window.confirm("Перейти к диалогу?")) {
+            navigate(`/dialog/${dialogId}`);
+          }
+        }, 1000);
+      } else {
+        toast.error(data.message || "Ошибка сохранения");
+      }
+    } catch (error) {
+      console.error("Failed to save:", error);
+      toast.error("Ошибка соединения при сохранении");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Экспорт в TXT
   const exportToTxt = () => {
     if (!validatePrompt() || !aiResponse) {
       toast.error("Сначала получите ответ от ИИ");
@@ -157,17 +427,28 @@ export function PromptBuilder({ user }) {
     }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-    const filename = `prompt_${promptName.replace(/\s+/g, '_')}_${timestamp}.txt`;
+    const filename = `prompt_${dialogTitle.replace(/\s+/g, '_')}_${timestamp}.txt`;
     
     const content = `========================================
-ПРОМПТ И ОТВЕТ ИИ
+ДИАЛОГ: ${dialogTitle}
+ПРОМПТ: ${promptName || 'Без названия'}
 Сгенерировано: ${new Date().toLocaleString()}
 Модель: ${model}
 Температура: ${temperature}
-Название: ${promptName}
+Тип: ${isNewDialog ? 'Новый диалог' : isEditing ? 'Редактирование' : 'Добавление в диалог'}
 ========================================
 
-=================== ПРОМПТ ===================
+=================== БЛОКИ ПРОМПТА ===================
+
+${blocks.map((block, i) => `
+[${block.label}] ${block.required ? '(обязательный)' : ''}
+Тип: ${block.type}
+---
+${block.content}
+---
+`).join('\n')}
+
+=================== ФИНАЛЬНЫЙ ПРОМПТ ===================
 
 ${generatePrompt()}
 
@@ -178,7 +459,6 @@ ${aiResponse}
 ========================================
 Конец файла`;
 
-    // Создаем Blob и скачиваем файл
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -192,40 +472,7 @@ ${aiResponse}
     toast.success(`Файл ${filename} скачан`);
   };
 
-  // Функция для экспорта только промпта
-  const exportPromptOnly = () => {
-    if (!validatePrompt()) {
-      toast.error("Заполните обязательные поля");
-      return;
-    }
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-    const filename = `prompt_${promptName.replace(/\s+/g, '_')}_${timestamp}.txt`;
-    
-    const content = `========================================
-ПРОМПТ ДЛЯ ИИ
-Создан: ${new Date().toLocaleString()}
-Название: ${promptName}
-========================================
-
-${generatePrompt()}
-
-========================================
-Конец файла`;
-
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    toast.success(`Промпт сохранен в ${filename}`);
-  };
-
+  // Получение ответа от ИИ
   const handleGetResult = async () => {
     if (!validatePrompt(true)) return;
 
@@ -233,12 +480,7 @@ ${generatePrompt()}
     setShowResponse(true);
     setShowTips(false);
     setAiResponse("");
-    console.log(JSON.stringify({
-          prompt: generatePrompt(),
-          model,
-          temperature,
-          user_id: user?.user_id
-        }))
+
     try {
       const response = await fetch("/api/ai/generate", {
         method: "POST",
@@ -250,7 +492,10 @@ ${generatePrompt()}
           prompt: generatePrompt(),
           model,
           temperature,
-          user_id: user?.user_id
+          blocks: blocks,
+          dialog_id: dialogId,
+          is_new_dialog: isNewDialog,
+          user_id: user?.user_id || user?.id
         }),
       });
 
@@ -259,9 +504,6 @@ ${generatePrompt()}
       if (data.success) {
         setAiResponse(data.response);
         toast.success("Ответ получен!");
-        
-        // Автоматически сохраняем диалог
-        saveToDialogs();
       } else {
         toast.error(data.message || "Ошибка генерации");
         setAiResponse("К сожалению, не удалось получить ответ. Попробуйте изменить промпт.");
@@ -275,29 +517,33 @@ ${generatePrompt()}
     }
   };
 
-  const saveToDialogs = async () => {
-    console.log(JSON.stringify({
-          title: promptName,
-          prompt: generatePrompt(),
-          response: aiResponse,
-          user_id: user?.user_id}))
-    try {
-      await fetch("/api/dialogs/save", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
-        },
-        body: JSON.stringify({
-          title: promptName,
-          prompt: generatePrompt(),
-          response: aiResponse,
-          user_id: user?.user_id
-        }),
-      });
-    } catch (error) {
-      console.error("Failed to save dialog:", error);
-    }
+  // Сброс формы для нового диалога
+  const resetForNewDialog = () => {
+    setBlocks([
+      {
+        id: "1",
+        type: "context",
+        content: "",
+        label: "Контекст",
+        required: true
+      },
+      {
+        id: "2",
+        type: "task",
+        content: "",
+        label: "Задача",
+        required: true
+      }
+    ]);
+    setDialogTitle("Мой диалог");
+    setPromptName("");
+    setAiResponse("");
+    setShowResponse(false);
+    setDialogId(null);
+    setPromptId(null);
+    setIsEditing(false);
+    setIsNewDialog(true);
+    toast.success("Готово для создания нового диалога");
   };
 
   const finalPrompt = generatePrompt();
@@ -305,18 +551,47 @@ ${generatePrompt()}
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-black pt-20 px-4 transition-colors duration-300">
       <div className="max-w-7xl mx-auto py-8">
-        {/* Хедер */}
+        {/* Хедер с информацией о режиме */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Конструктор промптов
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Создайте идеальный промпт для ИИ
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Конструктор промптов
+              </h1>
+              {isNewDialog ? (
+                <span className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 rounded-full text-sm font-medium flex items-center gap-1">
+                  <FolderPlus className="w-3 h-3" />
+                  Новый диалог
+                </span>
+              ) : isEditing ? (
+                <span className="px-3 py-1 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 rounded-full text-sm font-medium">
+                  Редактирование промпта
+                </span>
+              ) : (
+                <span className="px-3 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded-full text-sm font-medium">
+                  Добавление в диалог
+                </span>
+              )}
+            </div>
+            <p className="text-gray-600 dark:text-gray-400">
+              {isNewDialog 
+                ? "Создание нового диалога с первым промптом" 
+                : isEditing
+                ? "Редактирование существующего промпта"
+                : `Добавление промпта в диалог: ${dialogTitle}`
+              }
             </p>
           </div>
           
           <div className="flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              onClick={resetForNewDialog}
+              className="gap-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Новый диалог
+            </Button>
             <Button
               variant="outline"
               onClick={() => navigate("/dialogs")}
@@ -329,8 +604,58 @@ ${generatePrompt()}
         </div>
 
         <div className="grid lg:grid-cols-5 gap-8">
-          {/* Левая колонка - Конструктор (стала уже) */}
+          {/* Левая колонка - Конструктор */}
           <div className="lg:col-span-3 space-y-6">
+            {/* Название диалога */}
+            <Card className="p-6 bg-white dark:bg-gray-800 shadow-lg rounded-2xl">
+              <div className="flex items-center gap-2 mb-3">
+                <FolderPlus className="w-5 h-5 text-blue-600" />
+                <h3 className="font-semibold text-gray-900 dark:text-white">
+                  {isNewDialog ? "Название нового диалога" : `Диалог: ${dialogTitle}`}
+                </h3>
+              </div>
+              
+              {isNewDialog ? (
+                <>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Дайте название вашему диалогу *
+                  </label>
+                  <input
+                    className="w-full px-3 py-3 text-lg border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Например: Анализ конкурентов, Написание статей..."
+                    value={dialogTitle}
+                    onChange={(e) => setDialogTitle(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    * Это название будет использоваться для всего диалога. Внутри диалога можно будет добавлять разные промпты.
+                  </p>
+                </>
+              ) : (
+                <div className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg">
+                  <p className="font-medium text-gray-800 dark:text-gray-300">{dialogTitle}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    {isEditing ? "Редактируете промпт в этом диалоге" : "Добавляете новый промпт в этот диалог"}
+                  </p>
+                </div>
+              )}
+            </Card>
+
+            {/* Название конкретного промпта (опционально) */}
+            <Card className="p-6 bg-white dark:bg-gray-800 shadow-lg rounded-2xl">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Название этого промпта (необязательно)
+              </label>
+              <input
+                className="w-full px-3 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Например: Первый анализ, Финальная версия..."
+                value={promptName}
+                onChange={(e) => setPromptName(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                Поможет отличать разные промпты внутри одного диалога
+              </p>
+            </Card>
+
             {/* Настройки модели */}
             <Card className="p-6 bg-white dark:bg-gray-800 shadow-lg rounded-2xl">
               <div className="flex items-center gap-2 mb-4">
@@ -374,7 +699,12 @@ ${generatePrompt()}
             </Card>
 
             {/* Блоки промпта */}
-            <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
+            <div className="space-y-4 max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900 dark:text-white">Блоки промпта</h3>
+                <span className="text-sm text-gray-500">{blocks.length} блоков</span>
+              </div>
+              
               {blocks.map((block, i) => (
                 <Card key={block.id} className="p-4 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
                   <div className="flex justify-between items-center mb-3">
@@ -457,35 +787,13 @@ ${generatePrompt()}
             </div>
           </div>
 
-          {/* Правая колонка - Предпросмотр и результат (стала шире) */}
+          {/* Правая колонка */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Название промпта */}
-            <Card className="p-6 bg-white dark:bg-gray-800 shadow-lg rounded-2xl">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                Название промпта
-              </label>
-              <input
-                className="w-full px-3 py-3 text-lg border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Введите название..."
-                value={promptName}
-                onChange={(e) => setPromptName(e.target.value)}
-              />
-            </Card>
-
             {/* Предпросмотр */}
             <Card className="p-6 bg-white dark:bg-gray-800 shadow-lg rounded-2xl">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold text-gray-900 dark:text-white">Предпросмотр</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Предпросмотр промпта</h3>
                 <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={exportPromptOnly} 
-                    className="gap-1.5 h-8"
-                    title="Экспорт промпта в TXT"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                  </Button>
                   <Button 
                     size="sm" 
                     variant="outline" 
@@ -555,15 +863,6 @@ ${generatePrompt()}
                         <Button 
                           size="sm" 
                           variant="outline" 
-                          onClick={exportToTxt}
-                          className="gap-1.5 h-8"
-                          title="Экспорт промпта и ответа в TXT"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
                           onClick={copyResponse}
                           className="gap-1.5 h-8"
                         >
@@ -579,7 +878,6 @@ ${generatePrompt()}
                     <div className="flex flex-col items-center justify-center h-40">
                       <Sparkles className="w-8 h-8 text-blue-600 animate-pulse mb-3" />
                       <p className="text-sm text-gray-500">ИИ генерирует ответ...</p>
-                      <p className="text-xs text-gray-400 mt-1">Это может занять несколько секунд</p>
                     </div>
                   ) : aiResponse ? (
                     <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -597,12 +895,27 @@ ${generatePrompt()}
                 {aiResponse && (
                   <div className="flex gap-2 mt-4">
                     <Button 
-                      variant="outline" 
-                      className="flex-1 gap-2 text-sm"
-                      onClick={() => navigate(`/dialog/new?prompt=${encodeURIComponent(promptName)}&response=${encodeURIComponent(aiResponse)}`)}
+                      variant="default"
+                      className="flex-1 gap-2 text-sm bg-green-600 hover:bg-green-700"
+                      onClick={isNewDialog ? createNewDialog : addToExistingDialog}
+                      disabled={isSaving}
                     >
-                      <MessageSquare className="w-4 h-4" />
-                      Диалог
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Сохранение...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          {isNewDialog 
+                            ? 'Создать новый диалог' 
+                            : isEditing 
+                              ? 'Обновить промпт' 
+                              : 'Добавить в диалог'
+                          }
+                        </>
+                      )}
                     </Button>
                     <Button 
                       variant="outline" 
@@ -622,32 +935,26 @@ ${generatePrompt()}
               <Card className="p-5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl">
                 <div className="flex items-center gap-2 mb-3">
                   <HelpCircle className="w-5 h-5 text-blue-600" />
-                  <h4 className="font-semibold text-gray-900 dark:text-white">Советы по созданию</h4>
+                  <h4 className="font-semibold text-gray-900 dark:text-white">Как это работает</h4>
                 </div>
                 <ul className="space-y-2">
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 mt-1.5 bg-blue-600 rounded-full flex-shrink-0"></div>
-                    <span className="text-xs text-gray-700 dark:text-gray-300">Будьте конкретны в описании задачи</span>
+                    <span className="text-xs text-gray-700 dark:text-gray-300">
+                      <strong>Название диалога</strong> - общее название для всей цепочки промптов
+                    </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 mt-1.5 bg-blue-600 rounded-full flex-shrink-0"></div>
-                    <span className="text-xs text-gray-700 dark:text-gray-300">Укажите роль для лучшего контекста</span>
+                    <span className="text-xs text-gray-700 dark:text-gray-300">
+                      <strong>Название промпта</strong> - опционально, помогает отличать промпты внутри диалога
+                    </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 mt-1.5 bg-blue-600 rounded-full flex-shrink-0"></div>
-                    <span className="text-xs text-gray-700 dark:text-gray-300">Добавьте примеры ожидаемого ответа</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="w-1.5 h-1.5 mt-1.5 bg-blue-600 rounded-full flex-shrink-0"></div>
-                    <span className="text-xs text-gray-700 dark:text-gray-300">Ограничьте формат вывода при необходимости</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="w-1.5 h-1.5 mt-1.5 bg-blue-600 rounded-full flex-shrink-0"></div>
-                    <span className="text-xs text-gray-700 dark:text-gray-300">Используйте температуру 0.7 для баланса</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="w-1.5 h-1.5 mt-1.5 bg-blue-600 rounded-full flex-shrink-0"></div>
-                    <span className="text-xs text-gray-700 dark:text-gray-300">После получения ответа можете экспортировать в TXT</span>
+                    <span className="text-xs text-gray-700 dark:text-gray-300">
+                      После сохранения вы сможете добавлять новые промпты в этот же диалог
+                    </span>
                   </li>
                 </ul>
               </Card>

@@ -19,20 +19,35 @@ export function Login({ onLogin }) {
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const isPasswordFilled = password.length > 0;
 
-  // Проверяем location state на наличие данных о подтверждении email
-  useEffect(() => {
-    if (location.state?.emailVerified) {
-      setEmailVerified(true);
-      if (location.state?.email) {
-        setEmail(location.state.email);
-      }
-      // Также проверяем localStorage
-      const verifiedEmail = localStorage.getItem("verifiedEmail");
-      if (verifiedEmail && verifiedEmail === location.state.email) {
-        console.log("Email подтвержден через localStorage");
-      }
+ useEffect(() => {
+    const token = localStorage.getItem("emailConfirmationToken");
+    
+    if (token) {
+      verifyEmailToken(token);
+      localStorage.removeItem("emailConfirmationToken");
     }
-  }, [location.state]);
+  }, []);
+
+  const verifyEmailToken = async (token) => {
+    try {
+      const res = await fetch(`/api/confirm-email?token=${token}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        // Показываем уведомление и подставляем email
+        toast.success("Email успешно подтверждён!");
+        if (data.email) setEmail(data.email);
+      } else {
+        toast.error(data.message || "Ссылка недействительна");
+      }
+    } catch (error) {
+      toast.error("Ошибка при подтверждении email");
+    }
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -52,10 +67,9 @@ export function Login({ onLogin }) {
 
       if (data.success) {
         onLogin(data.data.user, data.data.token);
-        navigate("/profile");
         toast.success(`Добро пожаловать, ${data.data.user.username}!`);
+        navigate('/profile');
       } else {
-        // Проверяем, нужно ли подтвердить email
         if (data.code === "EMAIL_NOT_VERIFIED") {
           toast.error("Подтвердите email перед входом. Проверьте свою почту.");
         } else {
@@ -81,7 +95,6 @@ export function Login({ onLogin }) {
           </p>
         </div>
 
-        {/* Индикатор проверки токена */}
         {verifyingToken && (
           <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-center">
             <p className="text-blue-600 dark:text-blue-400 font-medium">
@@ -91,7 +104,6 @@ export function Login({ onLogin }) {
         )}
 
         <form onSubmit={handleLogin} className="space-y-6">
-          {/* Уведомление о подтверждении email */}
           {emailVerified && !verifyingToken && (
             <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
               <div className="flex items-center justify-center gap-2 text-green-700 dark:text-green-400">
@@ -148,7 +160,6 @@ export function Login({ onLogin }) {
             </button>
           </div>
 
-          {/* Забыли пароль? */}
           <div className="text-right">
             <Link
               to="/forgot-password"
@@ -158,7 +169,6 @@ export function Login({ onLogin }) {
             </Link>
           </div>
 
-          {/* Кнопка входа */}
           <Button
             type="submit"
             disabled={submitting || verifyingToken || !isValidEmail || !isPasswordFilled}

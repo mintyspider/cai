@@ -29,7 +29,6 @@ export function Navbar({ user, onLogout, toggleSidebar }) {
 
   const navItems = user
     ? [
-        { label: "Главная", path: "/", icon: Home },
         { label: "Конструктор", path: "/builder", icon: Sparkles },
         { label: "Диалоги", path: "/dialogs", icon: MessageSquare },
         { label: "Профиль", path: "/profile", icon: User },
