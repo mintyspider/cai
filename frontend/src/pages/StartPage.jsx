@@ -1,14 +1,17 @@
 // src/pages/StartPage.jsx
+import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { ArrowRight, BookOpen, Zap, LayoutTemplate, History } from "lucide-react";
 import { useEffect } from "react";
 
-export function StartPage({ setPage, user }) {
+export function StartPage({ user }) {
+  const navigate = useNavigate();
+
   useEffect(() => {
     if (user) {
-      setPage("builder");
+      navigate("/builder");
     }
-  }, [user, setPage]);
+  }, [user, navigate]);
 
   if (user) return null;
 
@@ -35,7 +38,7 @@ export function StartPage({ setPage, user }) {
         <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
           <Button
             size="lg"
-            onClick={() => setPage("register")}
+            onClick={() => navigate("/register")}
             className="h-12 px-8 text-base font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-md hover:shadow-lg transition-all"
           >
             Начать бесплатно
@@ -45,7 +48,7 @@ export function StartPage({ setPage, user }) {
           <Button
             size="lg"
             variant="outline"
-            onClick={() => setPage("guide")}
+            onClick={() => navigate("/guide")}
             className="h-12 px-8 text-base font-medium border-2 dark:text-white border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             <BookOpen className="mr-2 w-4 h-4" />

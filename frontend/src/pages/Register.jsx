@@ -4,8 +4,10 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Eye, EyeOff, User, Mail, Lock, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
 
-export function Register({ setPage }) {
+export function Register({ onLogin }) {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -49,15 +51,15 @@ export function Register({ setPage }) {
 
       if (data.success) {
         toast.success("Аккаунт создан! Подтвердите электронную почту");
-        setTimeout(() => setPage("login"), 1500);
+        setTimeout(() => navigate("/login"), 1500);
       } else {
         toast.error(data.message || "Ошибка");
       }
     } catch {
       toast.error("Нет связи с сервером");
     }
-  setSubmitting(false);
-};
+    setSubmitting(false);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-16 px-4 transition-colors duration-300">
@@ -66,6 +68,9 @@ export function Register({ setPage }) {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             Регистрация
           </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Создайте аккаунт для доступа ко всем функциям
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -113,16 +118,16 @@ export function Register({ setPage }) {
                 className="h-12 text-lg pl-12 pr-12 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 focus:border-black dark:focus:border-white transition-all"
                 disabled={submitting}
               />
-              {/* Галочка слева — появляется, когда пароль введён */}
-            {checks.length && checks.letter && checks.number && checks.special ? (
-              <CheckCircle2 className="absolute left-3.5 top-3.5 h-5 w-5 text-green-500 transition-all duration-200" />
-            ) : (
-              <Lock className="absolute left-3.5 top-3.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
-            )}
+              {checks.length && checks.letter && checks.number && checks.special ? (
+                <CheckCircle2 className="absolute left-3.5 top-3.5 h-5 w-5 text-green-500 transition-all duration-200" />
+              ) : (
+                <Lock className="absolute left-3.5 top-3.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
+              )}
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-3.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                disabled={submitting}
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -168,6 +173,7 @@ export function Register({ setPage }) {
               type="button"
               onClick={() => setShowConfirm(!showConfirm)}
               className="absolute right-3 top-3.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              disabled={submitting}
             >
               {showConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
@@ -185,13 +191,23 @@ export function Register({ setPage }) {
 
         <div className="mt-8 text-center">
           <span className="text-gray-600 dark:text-gray-400">Уже есть аккаунт? </span>
-          <button
-            onClick={() => setPage("login")}
-            className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+          <Link
+            to="/login"
+            className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors"
           >
             Войти
-          </button>
+          </Link>
+        </div>
+
+        <div className="mt-6 text-center">
+          <Link
+            to="/"
+            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm hover:underline transition-colors"
+          >
+            Вернуться на главную
+          </Link>
         </div>
       </div>
     </div>
-  )};
+  );
+}

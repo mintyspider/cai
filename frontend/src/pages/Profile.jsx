@@ -1,13 +1,20 @@
-// src/pages/Profile.jsx -> мертвый, вы сюда не попадете
+// src/pages/Profile.jsx
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
 
-export function Profile({ user, setPage, setUser }) {
-    const [submitting, setSubmitting] = useState(false);
+export function Profile({ user, setUser, onLogout }) {
+  const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
 
-    const handleLogout = async (e) => {
+  const formatDate = (dateString) => {
+    if (!dateString) return "Не указана";
+    return format(new Date(dateString), "dd.MM.yyyy");
+  };
+
+  const handleLogout = async (e) => {
     e.preventDefault();
     setSubmitting(true);
 
@@ -23,11 +30,9 @@ export function Profile({ user, setPage, setUser }) {
       const data = await res.json();
 
       if (data.success) {
-            localStorage.removeItem("user");
-            localStorage.removeItem("token");
-            setUser(null);
-            setPage("landing");
-            toast.success("Вы вышли из аккаунта");
+        onLogout();
+        navigate("/");
+        toast.success("Вы вышли из аккаунта");
       } else {
         toast.error(data.message || "Возникла ошибка при выходе");
       }
@@ -39,7 +44,7 @@ export function Profile({ user, setPage, setUser }) {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6  rounded-lg shadow-sm">
+    <div className="max-w-md mx-auto mt-20 p-6 rounded-lg shadow-sm">
       <h2 className="text-2xl font-bold mb-6">Профиль</h2>
       <div className="space-y-4 text-gray-700">
         <div>
@@ -52,19 +57,24 @@ export function Profile({ user, setPage, setUser }) {
         </div>
         <div>
           <p className="text-sm text-gray-500">Дата регистрации</p>
-          <p className="font-medium">{format(new Date(user.createdAt), "dd.MM.yyyy")}</p>
+          <p className="font-medium">{formatDate(user.createdAt)}</p>
         </div>
       </div>
       <div className="mt-8 space-y-3">
-        <Button variant="outline" className="w-full" onClick={() => setPage("change-password")}>
+        <Button 
+          variant="outline" 
+          className="w-full" 
+          onClick={() => navigate("/change-password")}
+        >
           Сменить пароль
         </Button>
         <Button
           variant="outline"
           className="w-full text-red-600"
-          onClick={() => handleLogout()}
+          onClick={handleLogout}
+          disabled={submitting}
         >
-          Выйти
+          {submitting ? "Выход..." : "Выйти"}
         </Button>
       </div>
     </div>
